@@ -7,45 +7,49 @@ from math import sqrt
 
 import numpy as np
 
-def jacobi(ain,tol = 1.0e-9): 
- 
-    def maxElem(a): # поиск самого большого не диагонального элемента a[k,l]
-        n = len(a)
-        aMax = 0.0
-        for i in range(n-1):
-            for j in range(i+1,n):
-                if abs(a[i,j]) >= aMax:
-                    aMax = abs(a[i,j])
-                    k = i; l = j
-        return aMax,k,l
- 
-    def rotate(a, k,l): # ротрация чтобы a[k,l] = 0
-        n = len(a)
-        aDiff = a[l,l] - a[k,k]
-        if abs(a[k,l]) < abs(aDiff)*1.0e-36: t = a[k,l]/aDiff
-        else:
-            phi = aDiff/(2.0*a[k,l])
-            t = 1.0/(abs(phi) + sqrt(phi**2 + 1.0))
-            if phi < 0.0: t = -t
-        c = 1.0/sqrt(t**2 + 1.0); s = t*c
-        tau = s/(1.0 + c)
-        temp = a[k,l]
-        a[k,l] = 0.0
-        a[k,k] = a[k,k] - t*temp
-        a[l,l] = a[l,l] + t*temp
-        for i in range(k):      # Case of i < k
-            temp = a[i,k]
-            a[i,k] = temp - s*(a[i,l] + tau*temp)
-            a[i,l] = a[i,l] + s*(temp - tau*a[i,l])
-        for i in range(k+1,l):  # Case of k < i < l
-            temp = a[k,i]
-            a[k,i] = temp - s*(a[i,l] + tau*a[k,i])
-            a[i,l] = a[i,l] + s*(temp - tau*a[i,l])
-        for i in range(l+1,n):  # Case of i > l
-            temp = a[k,i]
-            a[k,i] = temp - s*(a[l,i] + tau*temp)
-            a[l,i] = a[l,i] + s*(temp - tau*a[l,i])
-      
+def jacobi(myA, k_max):
+    A = myA
+    n = A.shape[0]
+    C = np.copy(A)
+    k = 1
+    lambda_ = np.sqrt(np.max(C.diagonal()))*10.0**(-k)
+    triu = np.abs(np.triu(C))
+    for i in range(triu.shape[0]): triu[i,i] = 0.0
+    index_matrix_max = np.unravel_index(np.argmax(triu), C.shape)
+    matrix_max = triu[index_matrix_max]
+    count = 0
+    while (k != k_max and count < 10):
+        i = index_matrix_max[0]
+        j = index_matrix_max[1]
+        d = np.sqrt((A[i,i] - A[j,j])**2+4*A[i,j]**2)
+        c = np.sqrt(0.5*(1+(np.abs(A[i,i]-A[j,j]))/d))
+        s = np.sign(A[i,j]*(A[i,i] - A[j,j]))*np.sqrt(0.5*(1-np.abs(A[i,i]-A[j,j])/d))
+        for k in range(n):
+            for l in range(n):
+                if (k != i and k != j and l != i and l != j):
+                    C[k,l] = A[k,l]
+                elif(k != i and k != j):
+                    C[k,i] = c*A[k,i] + s*A[k,j]
+                    C[i,k] = C[k,i]
+                    C[k,j] = -s*A[k,i]+c*A[k,j]
+                    C[j,k] = C[k,j]
+        C[i,i] = c**2*A[i,i]+2*c*s*A[i,j]+s**2*A[j,j]
+        C[j,j] = s**2*A[i,i]-2*c*s*A[i,j]+c**2*A[j,j]
+        C[i,j] = 0
+        C[j,i] = 0
+        A = np.copy(C)
+        lambda_ = np.sqrt(np.max(C.diagonal()))*10**(-k)
+        triu = np.abs(np.triu(C))
+        print(triu)
+        for i in range(triu.shape[0]): triu[i,i] = 0.0
+        index_matrix_max = np.unravel_index(np.argmax(triu), C.shape)
+        matrix_max = triu[index_matrix_max]
+        while(k != k_max and matrix_max < lambda_):
+            k += 1
+            lambda_ = np.sqrt(np.max(C.diagonal()))*10**(-k)
+        count += 1
+
+    return(A.diagonal())
  
     a=np.copy(ain)
     n = len(a)
@@ -60,7 +64,7 @@ def f(n, a, b, e, xt, w):
     x = np.zeros(n)
     t=False
     k=0
-    l=jacobi(a)
+    l=jacobi(a, 10000)
     lmax=max(l)
     lmin=min(l)
     r0=2/(lmin+lmax)
